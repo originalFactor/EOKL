@@ -1,0 +1,12 @@
+[[source]]
+url = "https://mirrors.cernet.edu.cn/pypi/web/simple"
+verify_ssl = true
+name = "pip_conf_index_global"
+
+[packages]
+flask = "*"
+
+[dev-packages]
+
+[requires]
+python_version = "3.11"
