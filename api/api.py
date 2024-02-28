@@ -8,6 +8,7 @@ from bson import ObjectId
 from time import time, sleep
 from threading import Thread
 from hashlib import sha512
+from uvicorn import run
 
 # sha512 encrypt function
 s512 = lambda d: sha512(d).hexdigest()
@@ -21,7 +22,7 @@ app = FastAPI(
 
 # connect database
 db = MongoClient(
-    environ.get("ECSOKL_MONGODB_HOST","mongodb://127.0.0.1:27017")
+    environ.get("MONGODB_URI","mongodb://127.0.0.1:27017")
     )[
         environ.get("ECSOKL_MONGODB_DB","ECSOKL")
     ]
@@ -100,13 +101,25 @@ async def newPendingLoginRequest():
         "time": time()
     }).inserted_id
 
+# check login request
+@app.get('/chkQr')
+async def checkPendingLoginRequest(r:str):
+    tryRMTPLRP()
+    if db.loginRequests.find_one({
+        "_id": ObjectId(r),
+        "status": "completed"
+    }):
+        return 
+
 # automatically remove timeout pending login request
 def rmTimeoutPendingLoginRequests():
-    while True:
-        db.loginRequest.delete_many({"time":{"$lt":time()-600}})
-        sleep(600)
-rmtplrP = Thread(target=rmTimeoutPendingLoginRequests,daemon=True)
+    db.loginRequest.delete_many({"time":{"$lt":time()-600}})
+    sleep(600)
+rmtplrP = Thread(target=rmTimeoutPendingLoginRequests)
 rmtplrP.start()
 
-if __name__=="__main__":
-    app.run("127.0.0.1",37089,True)
+def tryRMTPLRP():
+    if rmtplrP.is_alive():
+        return
+    rmtplrP = Thread(target=rmTimeoutPendingLoginRequests)
+    rmtplrP.start()
