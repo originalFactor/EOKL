@@ -29,11 +29,12 @@ db = MongoClient(
         environ.get("ECSOKL_MONGODB_DB","ECSOKL")
     ]
 
-# get program directory
-directory = '.'#split(abspath(__file__))[0]
-
 # initialize database
-if not exists(directory+'/.initialized'):
+@app.get("/initialize")
+def initialize():
+    """
+    Initialize Application by Settings in Environ.
+    """
     try:
         db.users.insert_one({
             "username": environ.get("ECSOKL_ADMIN_USERNAME","Administrator"),
@@ -45,12 +46,10 @@ if not exists(directory+'/.initialized'):
         db.users.create_index("username",unique=True)
         db.users.create_index("QR",unique=True)
     except DuplicateKeyError:
-        print("Already initialized. Someone deleted .initialized file, recovering...")
         db.users.update_one({"permission":999}, {"$set":{
             "username": environ.get("ECSOKL_ADMIN_USERNAME","Administrator"),
             "password": s512(environ.get("ECSOKL_ADMIN_PASSWORD","MyAdminPassword123")),
         }})
-    open(directory+'/.initialized','w').close()
 
 class LoginByPWD(BaseModel):
     username : Annotated[str, Field(examples=["Administrator"])]
