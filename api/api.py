@@ -51,24 +51,25 @@ def initialize():
             "password": s512(environ.get("ECSOKL_ADMIN_PASSWORD","MyAdminPassword123")),
         }})
 
-class LoginByPWD(BaseModel):
+class Username(BaseModel):
     username : Annotated[str, Field(examples=["Administrator"])]
+
+class Password(BaseModel):
     password: Annotated[str, Field(examples=["MyAdminPassword123"])]
 
-class LoginByQR(BaseModel):
-    value: Annotated[str, Field(description="the QR code recorded when you registered. SuperAdmin doesn't have.", examples=["exampleQRCode"])]
+class QR(BaseModel):
+    qr: Annotated[str, Field(description="the QR code recorded when you registered. SuperAdmin doesn't have.", examples=["exampleQRCode"])]
 
-class UserPrivate(BaseModel):
-    username : Annotated[str, Field(examples=["exampleUser"])]
+class BasicAuthentication(Username, Password): pass
+
+class UserPrivate(Username):
     permission: Annotated[int, Field(description="User's permission level", ge=0, le=999, examples=[1])] = 0
     allowQR : Annotated[bool, Field(description="Enable QR login", examples=[True])] = False
 
-class User(UserPrivate):
-    password : Annotated[str, Field(examples=["examplePassword"])]
-    QR : Annotated[Union[str,None], Field(description="QR code. You must provide this if `allowQR` is `true` for safety reasons.", examples=["exampleQRCodeValue"])] = None
+class User(UserPrivate, Password, QR): pass
 
 class NewUserQueue(BaseModel):
-    auth : Annotated[Union[LoginByPWD,LoginByQR], Field(description="The user have enough permission to create a new user.")]
+    auth : Annotated[Union[BasicAuthentication,QR], Field(description="The user have enough permission to create a new user.")]
     new : Annotated[User, Field(description="The user profile you want to create.")]
 
 class StatusCodeEnum(int, Enum):
@@ -84,12 +85,12 @@ async def new_user(q:NewUserQueue):
     """
     Create a New Account by Permission(>=10)
     """
-    if isinstance(q.auth, LoginByPWD):
+    if isinstance(q.auth, BasicAuthentication):
         authResult = db.users.find_one({
             "username": q.auth.username,
             'password': s512(q.auth.password)
         })
-    elif isinstance(q.auth, LoginByQR):
+    elif isinstance(q.auth, QR):
         authResult = db.users.find_one({
             "allowQR": True,
             "QR": s512(q.auth.value),
@@ -107,11 +108,11 @@ async def new_user(q:NewUserQueue):
                 "QR": s512(q.new.QR)
             })
             return {
-                "code": 1
+                "status": 1
             }
         except DuplicateKeyError: pass
     return {
-        "code": -1
+        "status": -1
     }
 
 class LoginResp(ActionStatus):
@@ -119,7 +120,7 @@ class LoginResp(ActionStatus):
 
 # login by username and password
 @app.post('/login',response_model=LoginResp)
-async def login(q:Union[LoginByPWD,LoginByQR]):
+async def login(q:Union[BasicAuthentication,QR]):
     """
     Login to the system.
     """
@@ -128,7 +129,7 @@ async def login(q:Union[LoginByPWD,LoginByQR]):
             "username": q.username,
             "password": s512(q.password)
         }
-        if isinstance(q, LoginByPWD) else
+        if isinstance(q, BasicAuthentication) else
         {
             "allowQR": True,
             "QR": s512(q.value)
@@ -138,16 +139,10 @@ async def login(q:Union[LoginByPWD,LoginByQR]):
         "status": 1 if result else -1,
         "user": result
     }
+class RequestID(BaseModel):
+    request : Annotated[str, Field(description="The ID of the Request", examples=["65eb3b9af7fdbebd6de3b236"])]
 
-class QRLoginQueue(BaseModel):
-    QR : Annotated[str, Field(
-        description="the value of QR Code of the account you want to login.",
-        examples=["exampleQRCode"]
-    )]
-    request : Annotated[str, Field(
-        description="The ID of the login request, regularly you can get it from the QR Code the login page are showing.",
-        examples=["65eb3b9af7fdbebd6de3b236"]
-    )]
+class QRLoginQueue(QR, RequestID): pass
 
 # login by qr code
 @app.post("/qrlogin", response_model=ActionStatus)
@@ -177,9 +172,6 @@ async def login_by_QR(q:QRLoginQueue):
     return {
         "code": -1
     }
-
-class RequestID(BaseModel):
-    id : Annotated[str, Field(description="The ID of the Request", examples=["65eb3b9af7fdbebd6de3b236"])]
 
 # new login request
 @app.get('/newqr', response_model=RequestID)
