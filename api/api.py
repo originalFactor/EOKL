@@ -117,20 +117,23 @@ async def new_user(q:NewUserQueue):
 class LoginResp(ActionStatus):
     user : Union[UserPrivate,None] = None
 
-class PasswordLoginQueue(BaseModel):
-    username : Annotated[str, Field(examples=["exampleUsername"])]
-    password : Annotated[str, Field(examples=["examplePassword"])]
-
 # login by username and password
 @app.post('/login',response_model=LoginResp)
-async def login(q:PasswordLoginQueue):
+async def login(q:Union[LoginByPWD,LoginByQR]):
     """
-    Login to the system by username&password.
+    Login to the system.
     """
-    result = db.users.find_one({
-        "username": q.username,
-        "password": s512(q.password)
-    })
+    result = db.users.find_one(
+        {
+            "username": q.username,
+            "password": s512(q.password)
+        }
+        if isinstance(q, LoginByPWD) else
+        {
+            "allowQR": True,
+            "QR": s512(q.value)
+        }
+    )
     return {
         "status": 1 if result else -1,
         "user": result
