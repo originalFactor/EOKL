@@ -105,7 +105,7 @@ async def new_user(q:NewUserQueue):
                 "password": s512(q.new.password),
                 "permission": q.new.permission,
                 "allowQR": q.new.allowQR,
-                "QR": s512(q.new.QR)
+                "QR": s512(q.new.qr)
             })
             return {
                 "status": 1
@@ -132,7 +132,7 @@ async def login(q:Union[BasicAuthentication,QR]):
         if isinstance(q, BasicAuthentication) else
         {
             "allowQR": True,
-            "QR": s512(q.value)
+            "QR": s512(q.qr)
         }
     )
     return {
@@ -152,7 +152,7 @@ async def login_by_QR(q:QRLoginQueue):
     """
     result = db.users.find_one({
         "allowQR": True,
-        "QR": s512(q.QR)
+        "QR": s512(q.qr)
     })
     if result:
         db.loginRequests.update_one(
