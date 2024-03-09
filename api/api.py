@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field
 from os.path import exists, abspath, split
 from pymongo import MongoClient
 from os import environ
-from typing import Annotated
+from typing import Annotated, Union
 from bson import ObjectId
 from time import time, sleep
 from multiprocessing import Process, freeze_support
@@ -65,10 +65,10 @@ class UserPrivate(BaseModel):
 
 class User(UserPrivate):
     password : Annotated[str, Field(examples=["examplePassword"])]
-    QR : Annotated[str|None, Field(description="QR code. You must provide this if `allowQR` is `true` for safety reasons.", examples=["exampleQRCodeValue"])] = None
+    QR : Annotated[Union[str,None], Field(description="QR code. You must provide this if `allowQR` is `true` for safety reasons.", examples=["exampleQRCodeValue"])] = None
 
 class NewUserQueue(BaseModel):
-    auth : Annotated[LoginByPWD|LoginByQR, Field(description="The user have enough permission to create a new user.")]
+    auth : Annotated[Union[LoginByPWD,LoginByQR], Field(description="The user have enough permission to create a new user.")]
     new : Annotated[User, Field(description="The user profile you want to create.")]
 
 class StatusCodeEnum(int, Enum):
@@ -115,7 +115,7 @@ async def new_user(q:NewUserQueue):
     }
 
 class LoginResp(ActionStatus):
-    user : UserPrivate|None = None
+    user : Union[UserPrivate,None] = None
 
 class PasswordLoginQueue(BaseModel):
     username : Annotated[str, Field(examples=["exampleUsername"])]
