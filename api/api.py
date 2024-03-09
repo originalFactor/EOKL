@@ -30,7 +30,7 @@ db = MongoClient(
     ]
 
 # get program directory
-directory = split(abspath(__file__))[0]
+directory = '.'#split(abspath(__file__))[0]
 
 # initialize database
 if not exists(directory+'/.initialized'):
