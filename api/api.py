@@ -207,13 +207,12 @@ async def check_login_request(r:Annotated[str,Query(description="The ID of the R
     }
 
 # automatically remove timeout pending login request
+@app.get("/clean",response_model=None)
 def remove_timed_out_login_requests():
-    while True:
-        db.loginRequest.delete_many({"time":{"$lt":time()-3600}})
-        sleep(3600)
-
-rmtplr_t = Process(target=remove_timed_out_login_requests,daemon=True)
-rmtplr_t.start()
+    """
+    Clean the database by deleting timed out login requests.
+    """
+    db.loginRequest.delete_many({"time":{"$lt":time()-3600}})
 
 if __name__=="__main__":
     run(
