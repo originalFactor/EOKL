@@ -8,6 +8,7 @@ fastapi = "*"
 uvicorn = "*"
 pymongo = "*"
 pycryptodome = "*"
+python-multipart = "*"
 
 [dev-packages]
 
