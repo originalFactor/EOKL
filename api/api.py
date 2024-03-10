@@ -109,7 +109,7 @@ async def new_user(q:NewUserQueue):
             })
         except DuplicateKeyError as e:
             db.users.update_one(
-                ({"QR":s512(q.new.qr)} if 'QR' in e else {"username":q.new.username}),
+                {"username":q.new.username},
                 {
                     "$set": {
                         "username": q.new.username,
