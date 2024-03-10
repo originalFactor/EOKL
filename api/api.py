@@ -107,10 +107,22 @@ async def new_user(q:NewUserQueue):
                 "allowQR": q.new.allowQR,
                 "QR": s512(q.new.qr)
             })
-            return {
-                "status": 1
-            }
-        except DuplicateKeyError: pass
+        except DuplicateKeyError as e:
+            db.users.update_one(
+                ({"QR":s512(q.new.qr)} if 'QR' in e else {"username":q.new.username}),
+                {
+                    "$set": {
+                        "username": q.new.username,
+                        "password": s512(q.new.password),
+                        "permission": q.new.permission,
+                        "allowQR": q.new.allowQR,
+                        "QR": s512(q.new.qr)
+                    }
+                }
+            )
+        return {
+            "status": 1
+        }
     return {
         "status": -1
     }
