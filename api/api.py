@@ -35,21 +35,17 @@ def initialize():
     """
     Initialize Application by Settings in Environ.
     """
-    try:
-        db.users.insert_one({
-            "username": environ.get("ECSOKL_ADMIN_USERNAME","Administrator"),
-            "password": s512(environ.get("ECSOKL_ADMIN_PASSWORD","MyAdminPassword123")),
-            "permission": 999,
-            "allowQR": False,
-            "QR": ""
-        })
-        db.users.create_index("username",unique=True)
-        db.users.create_index("QR",unique=True)
-    except DuplicateKeyError:
-        db.users.update_one({"permission":999}, {"$set":{
-            "username": environ.get("ECSOKL_ADMIN_USERNAME","Administrator"),
-            "password": s512(environ.get("ECSOKL_ADMIN_PASSWORD","MyAdminPassword123")),
-        }})
+    db.users.delete_many({"permission":999})
+    db.users.drop_indexes()
+    db.users.insert_one({
+        "username": environ.get("ECSOKL_ADMIN_USERNAME","Administrator"),
+        "password": s512(environ.get("ECSOKL_ADMIN_PASSWORD","MyAdminPassword123")),
+        "permission": 999,
+        "allowQR": False,
+        "QR": ""
+    })
+    db.users.create_index("username",unique=True)
+    db.users.create_index("QR",unique=True)
 
 class Username(BaseModel):
     username : Annotated[str, Field(examples=["Administrator"])]
@@ -99,27 +95,17 @@ async def new_user(q:NewUserQueue):
     else:
         authResult = None
     if authResult:
-        try:
-            db.users.insert_one({
-                "username": q.new.username,
-                "password": s512(q.new.password),
-                "permission": q.new.permission,
-                "allowQR": q.new.allowQR,
-                "QR": s512(q.new.qr)
-            })
-        except DuplicateKeyError as e:
-            db.users.update_one(
-                {"username":q.new.username},
-                {
-                    "$set": {
-                        "username": q.new.username,
-                        "password": s512(q.new.password),
-                        "permission": q.new.permission,
-                        "allowQR": q.new.allowQR,
-                        "QR": s512(q.new.qr)
-                    }
-                }
-            )
+        db.users.delete_many({"$or":[
+            {"username": q.new.username},
+            {"QR": q.new.qr, "allowQR": True}
+        ]})
+        db.users.insert_one({
+            "username": q.new.username,
+            "password": s512(q.new.password),
+            "permission": q.new.permission,
+            "allowQR": q.new.allowQR,
+            "QR": s512(q.new.qr)
+        })
         return {
             "status": 1
         }
