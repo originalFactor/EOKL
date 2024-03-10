@@ -1,16 +1,15 @@
-from fastapi import FastAPI, Query, Form
+from fastapi import FastAPI, Query
 from pydantic import BaseModel, Field
-from os.path import exists, abspath, split
 from pymongo import MongoClient
 from os import environ
 from typing import Annotated, Union
 from bson import ObjectId
-from time import time, sleep
-from multiprocessing import Process, freeze_support
+from time import time
 from hashlib import sha512
-from pymongo.errors import DuplicateKeyError
 from uvicorn import run
 from enum import Enum
+from string import ascii_letters
+from random import choices
 
 # sha512 encrypt function
 s512 = lambda d: sha512(d.encode()).hexdigest()
@@ -28,24 +27,6 @@ db = MongoClient(
     )[
         environ.get("ECSOKL_MONGODB_DB","ECSOKL")
     ]
-
-# initialize database
-@app.get("/initialize")
-def initialize():
-    """
-    Initialize Application by Settings in Environ.
-    """
-    db.users.delete_many({"permission":999})
-    db.users.drop_indexes()
-    db.users.insert_one({
-        "username": environ.get("ECSOKL_ADMIN_USERNAME","Administrator"),
-        "password": s512(environ.get("ECSOKL_ADMIN_PASSWORD","MyAdminPassword123")),
-        "permission": 999,
-        "allowQR": False,
-        "QR": ""
-    })
-    db.users.create_index("username",unique=True)
-    db.users.create_index("QR",unique=True)
 
 class Username(BaseModel):
     username : Annotated[str, Field(examples=["Administrator"])]
@@ -74,6 +55,42 @@ class StatusCodeEnum(int, Enum):
 
 class ActionStatus(BaseModel):
     status : Annotated[StatusCodeEnum, Field(description="Status code of this action. `-1` for failed and `1` for success.",examples=[StatusCodeEnum.success])]
+
+
+# initialize database
+@app.get("/initialize", response_model=ActionStatus)
+def initialize():
+    """
+    Initialize Application by Settings in Environ.
+    """
+    db.users.delete_many({"permission":999})
+    db.users.drop_indexes()
+    db.users.insert_one({
+        "username": environ.get("ECSOKL_ADMIN_USERNAME","Administrator"),
+        "password": s512(environ.get("ECSOKL_ADMIN_PASSWORD","MyAdminPassword123")),
+        "permission": 999,
+        "allowQR": False,
+        "QR": ""
+    })
+    db.users.create_index("username",unique=True)
+    db.users.create_index("QR",unique=True)
+    return {
+        "status": 1
+    }
+
+# delete all data
+@app.get('/danger/factory_reset', response_model=ActionStatus)
+def factory_reset(pwd:Annotated[str,Query(description="Factory reset key",examples=["exampleSecretKey"])]):
+    """
+    Remove all the data in database. [DANGER]
+    """
+    if pwd != environ.get("ECSOKL_FACTORY_RESET_KEY",''.join(choices(ascii_letters+'0123456789',k=16))):
+        return {
+            "status": -1
+        }
+    db.users.delete_many({})
+    db.loginRequests.delete_many({})
+    return {"status":1}
 
 # new account
 @app.post('/new',response_model=ActionStatus)
@@ -200,12 +217,13 @@ async def check_login_request(r:Annotated[str,Query(description="The ID of the R
     }
 
 # automatically remove timeout pending login request
-@app.get("/clean",response_model=None)
+@app.get("/clean",response_model=ActionStatus)
 def remove_timed_out_login_requests():
     """
     Clean the database by deleting timed out login requests.
     """
     db.loginRequest.delete_many({"time":{"$lt":time()-3600}})
+    return {"status":1}
 
 if __name__=="__main__":
     run(
